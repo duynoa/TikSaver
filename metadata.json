@@ -1,0 +1,8 @@
+{
+  "name": "TikTok & Douyin Video Downloader HD",
+  "description": "Công cụ tải video TikTok và Douyin không watermark (không logo) chất lượng cao định dạng MP4 và trích xuất âm thanh MP3.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
