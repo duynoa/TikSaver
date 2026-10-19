@@ -1,10 +1,5 @@
 import express, { Request, Response, Router } from 'express';
-import { alldl } from 'rahad-all-downloader-v2';
-import { douyin as btchDouyin } from 'btch-downloader';
 import { ParsedMedia } from '../types';
-
-// Optimize third-party library timeout so it fails fast without blocking
-alldl.setTimeout(5000);
 
 // Clean and extract URL from raw input text (handles mobile share strings with unicode/chinese chars)
 function extractUrl(text: string): string | null {
@@ -125,7 +120,7 @@ async function parseDouyinDirect(url: string, resolvedUrl?: string): Promise<Par
       // safe ignore
     }
 
-    // Method B: query iesdouyin iteminfo API safely (reading text first to prevent Unexpected end of JSON input)
+    // Method B: query iesdouyin iteminfo API safely
     try {
       const apiUrl = `https://www.iesdouyin.com/web/api/v2/aweme/iteminfo/?item_ids=${videoId}`;
       const apiRes = await fetch(apiUrl, {
@@ -190,12 +185,21 @@ async function parseDouyinDirect(url: string, resolvedUrl?: string): Promise<Par
   return null;
 }
 
-// Fast & reliable Douyin parser via btch-downloader (SnapTik / LoveTik CDN)
+// Pure HTTP Douyin parser (SnapTik / LoveTik backend) - zero bloated dependencies
 async function parseDouyinBtch(url: string): Promise<ParsedMedia | null> {
   try {
-    const res: any = await btchDouyin(url);
-    if (res && res.status && res.result && res.result.data) {
-      const d = res.result.data;
+    const res = await fetch(`https://backend1.tioo.eu.org/douyin?url=${encodeURIComponent(url)}`, {
+      headers: {
+        'User-Agent': 'btch/6.4.0',
+        'Accept': 'application/json',
+      },
+      signal: AbortSignal.timeout(5000),
+    });
+
+    if (!res.ok) return null;
+    const json: any = await res.json();
+    if (json && json.status && json.result && json.result.data) {
+      const d = json.result.data;
       const links = Array.isArray(d.links) ? d.links : [];
       if (links.length === 0) return null;
 
@@ -205,7 +209,6 @@ async function parseDouyinBtch(url: string): Promise<ParsedMedia | null> {
 
       if (!videoLink) return null;
 
-      // Extract ID from url or videoLink
       const idMatch = url.match(/video\/(\d+)/) || videoLink.match(/_(\d+)/);
       const id = idMatch ? idMatch[1] : String(Date.now());
 
@@ -234,7 +237,7 @@ async function parseDouyinBtch(url: string): Promise<ParsedMedia | null> {
       };
     }
   } catch (err) {
-    console.warn('parseDouyinBtch error:', err);
+    // safe ignore
   }
   return null;
 }
@@ -329,50 +332,6 @@ async function parseTikWM(url: string, isDouyin: boolean): Promise<ParsedMedia |
   return await tryEndpoint(url);
 }
 
-// Fallback using rahad-all-downloader-v2 without noisy uncaught warnings
-async function parseWithAllDL(url: string, isDouyin: boolean): Promise<ParsedMedia | null> {
-  try {
-    const res = await alldl.tiktok(url);
-    if (res && res.success && res.data) {
-      const d = res.data;
-      const download = (d.download as Record<string, string>) || {};
-      const owner = (d.owner as Record<string, string>) || {};
-      const stats = (d.stats as Record<string, number>) || {};
-
-      const noWatermark = download.no_watermark || (d.download as string) || '';
-      if (!noWatermark) return null;
-
-      return {
-        id: String(Date.now()),
-        platform: isDouyin ? 'douyin' : 'tiktok',
-        title: d.title || (isDouyin ? 'Douyin Video' : 'TikTok Video'),
-        cover: fixUrl(d.thumbnail as string),
-        videoUrl: fixUrl(noWatermark),
-        hdVideoUrl: fixUrl(noWatermark),
-        wmVideoUrl: fixUrl(download.watermark),
-        musicUrl: fixUrl(download.music),
-        musicTitle: 'Original Audio',
-        musicAuthor: owner.nickname || 'Creator',
-        author: {
-          unique_id: owner.username || 'user',
-          nickname: owner.nickname || 'Creator',
-          avatar: fixUrl(owner.avatar),
-        },
-        stats: {
-          plays: stats.plays || 0,
-          likes: stats.likes || 0,
-          comments: stats.comments || 0,
-          shares: stats.shares || 0,
-        },
-        sourceUrl: url,
-      };
-    }
-  } catch {
-    // Silently continue if third-party server is busy or down
-  }
-  return null;
-}
-
 // Pre-packaged high quality demo videos for instant user testing without needing external links
 const DEMO_VIDEOS: Record<string, ParsedMedia> = {
   tiktok_travel: {
@@ -460,7 +419,7 @@ const DEMO_VIDEOS: Record<string, ParsedMedia> = {
 export function createApp() {
   const app = express();
 
-  // CORS middleware
+  // Global CORS middleware
   app.use((req, res, next) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
@@ -532,7 +491,7 @@ export function createApp() {
 
       let parsed: ParsedMedia | null = null;
 
-      // Strategy 1 (Douyin): Try specialized Douyin engine (btchDouyin - SnapTik/LoveTik CDN)
+      // Strategy 1 (Douyin): Try specialized Douyin engine (SnapTik/LoveTik CDN)
       if (isDouyin) {
         parsed = await parseDouyinBtch(extractedUrl);
         if (!parsed && resolvedUrl !== extractedUrl) {
@@ -551,11 +510,6 @@ export function createApp() {
       // Strategy 3: If Douyin and TikWM failed, try direct Douyin extractor
       if (!parsed && isDouyin) {
         parsed = await parseDouyinDirect(extractedUrl, resolvedUrl);
-      }
-
-      // Strategy 4: Try rahad-all-downloader-v2 (TikTok only)
-      if (!parsed && !isDouyin) {
-        parsed = (await parseWithAllDL(resolvedUrl, false)) || (await parseWithAllDL(extractedUrl, false));
       }
 
       if (parsed) {
@@ -608,8 +562,7 @@ export function createApp() {
             data =
               (await parseTikWM(resolved, isDy)) ||
               (resolved !== u ? await parseTikWM(u, isDy) : null) ||
-              (isDy ? await parseDouyinDirect(u, resolved) : null) ||
-              (!isDy ? await parseWithAllDL(resolved, false) : null);
+              (isDy ? await parseDouyinDirect(u, resolved) : null);
           }
 
           if (data) return { raw, success: true, data };
@@ -629,7 +582,6 @@ export function createApp() {
     try {
       const targetUrl = req.query.url as string;
       const rawFilename = (req.query.filename as string) || 'video.mp4';
-      const platform = (req.query.platform as string) || 'tiktok';
 
       if (!targetUrl) {
         res.status(400).send('Missing target URL');
