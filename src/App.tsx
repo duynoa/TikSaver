@@ -6,12 +6,39 @@ import {
   AlertCircle,
   RefreshCw,
   Layers,
-  History as HistoryIcon,
   Play,
+  Pause,
   X,
-  FolderDown
+  FolderDown,
+  Music,
+  Heart,
+  MessageCircle,
+  Share2,
+  Eye,
+  Sparkles,
+  Zap,
+  ShieldCheck,
+  Film,
+  Link as LinkIcon,
+  RotateCcw,
+  Images
 } from 'lucide-react';
-import { ParsedMedia, HistoryItem, BatchResultItem } from './types';
+import { ParsedMedia, BatchResultItem } from './types';
+
+// Helper formatters
+function formatNumber(num?: number): string {
+  if (!num) return '0';
+  if (num >= 1_000_000) return (num / 1_000_000).toFixed(1).replace('.0', '') + 'M';
+  if (num >= 1_000) return (num / 1_000).toFixed(1).replace('.0', '') + 'K';
+  return num.toLocaleString();
+}
+
+function formatDuration(seconds?: number): string {
+  if (!seconds) return '';
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60);
+  return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+}
 
 export default function App() {
   const [urlInput, setUrlInput] = useState('');
@@ -21,68 +48,39 @@ export default function App() {
   const [copiedCaption, setCopiedCaption] = useState(false);
   const [downloadingType, setDownloadingType] = useState<string | null>(null);
 
-  // Modals for secondary features
+  // Batch modal
   const [showBatchModal, setShowBatchModal] = useState(false);
-  const [showHistoryModal, setShowHistoryModal] = useState(false);
-
-  // Batch Mode
   const [batchInput, setBatchInput] = useState('');
   const [batchLoading, setBatchLoading] = useState(false);
   const [batchResults, setBatchResults] = useState<BatchResultItem[]>([]);
 
-  // Video Preview Player
+  // Video preview player
   const [isPlaying, setIsPlaying] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
-  // History state
-  const [history, setHistory] = useState<HistoryItem[]>(() => {
-    try {
-      const saved = localStorage.getItem('tikdouyin_history');
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  });
+  // Active image index for slideshow preview
+  const [activeImageIndex, setActiveImageIndex] = useState(0);
 
-  // Save history
+  // Clean up any old history from localStorage once on mount
   useEffect(() => {
     try {
-      localStorage.setItem('tikdouyin_history', JSON.stringify(history));
-    } catch (e) {
-      console.warn('Cannot save history', e);
+      localStorage.removeItem('tikdouyin_history');
+    } catch {
+      // ignore
     }
-  }, [history]);
+  }, []);
 
   // Detected platform badge
   const detectedPlatform = React.useMemo(() => {
     const text = urlInput.toLowerCase();
-    if (text.includes('douyin.com') || text.includes('iesdouyin') || urlInput.includes('抖音')) {
+    if (text.includes('douyin.com') || text.includes('iesdouyin') || urlInput.includes('抖音') || text.includes('douyin')) {
       return 'douyin';
     }
-    if (text.includes('tiktok.com') || text.includes('tiktokcdn')) {
+    if (text.includes('tiktok.com') || text.includes('tiktokcdn') || text.includes('tiktok')) {
       return 'tiktok';
     }
     return null;
   }, [urlInput]);
-
-  // Save to history helper
-  const addToHistory = (item: ParsedMedia) => {
-    setHistory((prev) => {
-      const filtered = prev.filter((h) => h.id !== item.id);
-      const newItem: HistoryItem = {
-        id: item.id,
-        platform: item.platform,
-        title: item.title,
-        cover: item.cover,
-        videoUrl: item.videoUrl,
-        hdVideoUrl: item.hdVideoUrl,
-        musicUrl: item.musicUrl,
-        downloadedAt: Date.now(),
-        authorName: '',
-      };
-      return [newItem, ...filtered].slice(0, 20);
-    });
-  };
 
   // Main Parse function
   const handleParse = async (urlOverride?: string) => {
@@ -95,6 +93,7 @@ export default function App() {
     setLoading(true);
     setError(null);
     setIsPlaying(false);
+    setActiveImageIndex(0);
 
     try {
       const res = await fetch('/api/parse', {
@@ -106,10 +105,9 @@ export default function App() {
       const data = await res.json();
       if (res.ok && data.success && data.data) {
         setParsedData(data.data);
-        addToHistory(data.data);
         setTimeout(() => {
-          document.getElementById('result-section')?.scrollIntoView({ behavior: 'smooth' });
-        }, 100);
+          document.getElementById('result-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 150);
       } else {
         setError(data.error || 'Không thể tải video này. Vui lòng kiểm tra lại liên kết hoặc thử link khác!');
       }
@@ -147,7 +145,7 @@ export default function App() {
 
     setTimeout(() => {
       setDownloadingType(null);
-    }, 2500);
+    }, 2000);
   };
 
   // Copy caption
@@ -165,8 +163,7 @@ export default function App() {
       videoRef.current.pause();
       setIsPlaying(false);
     } else {
-      videoRef.current.play();
-      setIsPlaying(true);
+      videoRef.current.play().then(() => setIsPlaying(true)).catch(() => {});
     }
   };
 
@@ -175,6 +172,7 @@ export default function App() {
     setParsedData(null);
     setUrlInput('');
     setError(null);
+    setIsPlaying(false);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -203,9 +201,6 @@ export default function App() {
       const data = await res.json();
       if (res.ok && data.results) {
         setBatchResults(data.results);
-        data.results.forEach((r: BatchResultItem) => {
-          if (r.success && r.data) addToHistory(r.data);
-        });
       } else {
         alert(data.error || 'Có lỗi xảy ra khi xử lý danh sách.');
       }
@@ -217,66 +212,76 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-pink-500 selection:text-white">
+    <div className="min-h-screen bg-[#080c14] text-slate-100 flex flex-col font-sans selection:bg-pink-500 selection:text-white relative overflow-x-hidden">
+      {/* Ambient background glows */}
+      <div className="fixed top-0 left-1/4 -translate-x-1/2 -top-40 w-96 h-96 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="fixed top-1/3 right-0 w-[500px] h-[500px] bg-pink-500/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="fixed bottom-0 left-1/3 w-96 h-96 bg-blue-600/10 rounded-full blur-3xl pointer-events-none" />
+
       {/* Top Navbar */}
-      <header className="border-b border-slate-800/80 bg-slate-950/80 backdrop-blur-md sticky top-0 z-30 px-4 py-3">
-        <div className="max-w-3xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-2.5 cursor-pointer" onClick={resetSearch}>
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-cyan-400 via-pink-500 to-rose-500 p-[1.5px] flex items-center justify-center shadow-md shadow-pink-500/20">
-              <div className="w-full h-full bg-slate-950 rounded-[10px] flex items-center justify-center">
-                <Download className="w-4 h-4 text-pink-400" />
+      <header className="border-b border-white/[0.06] bg-[#080c14]/80 backdrop-blur-xl sticky top-0 z-30 px-4 py-3.5 transition-all">
+        <div className="max-w-4xl mx-auto flex items-center justify-between">
+          {/* Logo */}
+          <div
+            className="flex items-center gap-2.5 cursor-pointer group"
+            onClick={resetSearch}
+            title="Về trang chủ TikSaver"
+          >
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-cyan-400 via-pink-500 to-rose-500 p-[1.5px] flex items-center justify-center shadow-lg shadow-pink-500/20 group-hover:shadow-pink-500/30 transition">
+              <div className="w-full h-full bg-[#090d16] rounded-[10px] flex items-center justify-center">
+                <Download className="w-4 h-4 text-pink-400 group-hover:scale-110 transition-transform" />
               </div>
             </div>
-            <div>
-              <span className="font-extrabold text-base sm:text-lg tracking-tight bg-gradient-to-r from-cyan-300 via-white to-pink-400 bg-clip-text text-transparent">
+            <div className="flex items-center gap-2">
+              <span className="font-extrabold text-lg tracking-tight bg-gradient-to-r from-cyan-300 via-white to-pink-400 bg-clip-text text-transparent">
                 TikSaver
               </span>
-              <span className="ml-1.5 text-[10px] font-bold px-1.5 py-0.5 rounded bg-pink-500/20 text-pink-400 uppercase">
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-gradient-to-r from-pink-500/20 to-rose-500/20 border border-pink-500/30 text-pink-300 uppercase tracking-wider">
                 HD
               </span>
             </div>
           </div>
 
+          {/* Action button */}
           <div className="flex items-center gap-2">
             <button
               onClick={() => setShowBatchModal(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-white transition"
+              className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-medium bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] text-slate-300 hover:text-white transition shadow-sm active:scale-95"
             >
               <Layers className="w-3.5 h-3.5 text-cyan-400" />
-              <span className="hidden sm:inline">Tải nhiều link</span>
-            </button>
-            <button
-              onClick={() => setShowHistoryModal(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-white transition relative"
-            >
-              <HistoryIcon className="w-3.5 h-3.5 text-pink-400" />
-              <span className="hidden sm:inline">Lịch sử</span>
-              {history.length > 0 && (
-                <span className="w-4 h-4 rounded-full bg-pink-500 text-white text-[10px] flex items-center justify-center font-bold">
-                  {history.length}
-                </span>
-              )}
+              <span>Tải nhiều link</span>
             </button>
           </div>
         </div>
       </header>
 
       {/* Main Container */}
-      <main className="flex-1 max-w-2xl w-full mx-auto px-4 py-8 sm:py-12 flex flex-col gap-7">
-        {/* Hero Title */}
-        <div className="text-center flex flex-col items-center gap-2">
-          <h1 className="text-2xl sm:text-4xl font-extrabold text-white tracking-tight">
-            Tải Video <span className="text-cyan-400">TikTok</span> & <span className="text-pink-500">Douyin</span> Không Logo
+      <main className="flex-1 max-w-3xl w-full mx-auto px-4 py-8 sm:py-12 flex flex-col gap-8 relative z-10">
+        {/* Hero Section */}
+        <div className="text-center flex flex-col items-center gap-3">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/[0.04] border border-white/[0.08] text-xs text-slate-300 backdrop-blur-sm shadow-sm mb-1">
+            <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
+            <span>Tách watermark tự động &bull; Hoàn toàn miễn phí</span>
+          </div>
+
+          <h1 className="text-2xl sm:text-4xl lg:text-5xl font-black text-white tracking-tight leading-tight">
+            Tải Video <span className="bg-gradient-to-r from-cyan-400 to-teal-300 bg-clip-text text-transparent">TikTok</span> &{' '}
+            <span className="bg-gradient-to-r from-pink-500 to-rose-400 bg-clip-text text-transparent">Douyin</span> Không Logo
           </h1>
-          <p className="text-slate-400 text-xs sm:text-sm">
-            Tự động loại bỏ watermark và lưu video MP4 chuẩn Full HD về thiết bị.
+
+          <p className="text-slate-400 text-xs sm:text-sm max-w-lg leading-relaxed">
+            Dán liên kết bất kỳ để tải video MP4 chuẩn Full HD không dính ID, tách nhạc MP3 và tải trọn bộ ảnh album cực nhanh.
           </p>
         </div>
 
-        {/* Search Input Box */}
-        <div className="flex flex-col gap-2">
-          <div className="relative rounded-2xl bg-slate-900 border-2 border-slate-800 focus-within:border-cyan-500 p-2 shadow-xl transition-all">
+        {/* Input Box Card */}
+        <div className="flex flex-col gap-3">
+          <div className="relative rounded-2xl bg-white/[0.03] border border-white/[0.1] focus-within:border-cyan-500/80 focus-within:ring-4 focus-within:ring-cyan-500/10 p-2 sm:p-2.5 backdrop-blur-xl shadow-2xl transition-all">
             <div className="flex items-center gap-2">
+              <div className="pl-2 text-slate-500 hidden sm:block">
+                <LinkIcon className="w-5 h-5 text-slate-400" />
+              </div>
+
               <input
                 type="text"
                 value={urlInput}
@@ -287,30 +292,33 @@ export default function App() {
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') handleParse();
                 }}
-                placeholder="Dán liên kết TikTok hoặc Douyin vào đây..."
-                className="w-full bg-transparent px-3 py-2.5 text-sm sm:text-base text-white placeholder-slate-500 focus:outline-none"
+                placeholder="Dán liên kết video TikTok hoặc Douyin vào đây..."
+                className="w-full bg-transparent px-2.5 py-2.5 text-sm sm:text-base text-white placeholder-slate-500 focus:outline-none"
               />
 
-              {/* Paste & Clear action buttons */}
-              {urlInput ? (
+              {/* Clear button */}
+              {urlInput && (
                 <button
                   onClick={() => {
                     setUrlInput('');
                     setError(null);
                   }}
-                  className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition"
-                  title="Xóa"
+                  className="p-2 text-slate-400 hover:text-white hover:bg-white/[0.08] rounded-xl transition"
+                  title="Xóa liên kết"
                 >
                   <X className="w-4 h-4" />
                 </button>
-              ) : (
+              )}
+
+              {/* Paste button (if input is empty) */}
+              {!urlInput && (
                 <button
                   onClick={handlePaste}
                   type="button"
-                  className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-cyan-300 flex items-center gap-1.5 transition shrink-0"
+                  className="px-3 py-2 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] border border-white/[0.06] text-xs font-semibold text-cyan-300 flex items-center gap-1.5 transition shrink-0 active:scale-95"
                 >
                   <Copy className="w-3.5 h-3.5" />
-                  <span>Dán link</span>
+                  <span className="hidden sm:inline">Dán link</span>
                 </button>
               )}
 
@@ -318,52 +326,56 @@ export default function App() {
               <button
                 onClick={() => handleParse()}
                 disabled={loading || !urlInput.trim()}
-                className="px-5 sm:px-7 py-3 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-cyan-500 via-teal-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-cyan-500/20 flex items-center justify-center gap-2 transition shrink-0 active:scale-95"
+                className="px-5 sm:px-7 py-3 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-cyan-500 via-teal-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-cyan-500/25 flex items-center justify-center gap-2 transition shrink-0 active:scale-95 cursor-pointer"
               >
                 {loading ? (
                   <>
                     <RefreshCw className="w-4 h-4 animate-spin" />
-                    <span>Đang tải...</span>
+                    <span>Đang xử lý...</span>
                   </>
                 ) : (
                   <>
                     <Download className="w-4 h-4" />
-                    <span>Tải Video</span>
+                    <span>Tải Ngay</span>
                   </>
                 )}
               </button>
             </div>
           </div>
 
-          {/* Platform indicator pill */}
+          {/* Platform indicator badge */}
           {detectedPlatform && (
-            <div className="flex items-center gap-1.5 text-xs text-slate-400 px-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            <div className="flex items-center gap-2 px-1 text-xs">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
               {detectedPlatform === 'douyin' ? (
-                <span className="text-pink-400 font-medium">Đã phát hiện link Douyin (抖音)</span>
+                <span className="text-pink-400 font-semibold bg-pink-500/10 px-2.5 py-0.5 rounded-full border border-pink-500/20">
+                  🇨🇳 Phát hiện link Douyin (抖音)
+                </span>
               ) : (
-                <span className="text-cyan-400 font-medium">Đã phát hiện link TikTok</span>
+                <span className="text-cyan-400 font-semibold bg-cyan-500/10 px-2.5 py-0.5 rounded-full border border-cyan-500/20">
+                  🎵 Phát hiện link TikTok
+                </span>
               )}
             </div>
           )}
 
           {/* Error Message */}
           {error && (
-            <div className="p-3.5 rounded-xl bg-red-950/40 border border-red-800/80 text-red-200 text-xs flex items-center gap-2.5">
-              <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
-              <span>{error}</span>
+            <div className="p-3.5 rounded-2xl bg-red-950/40 border border-red-500/30 text-red-200 text-xs sm:text-sm flex items-center gap-3 backdrop-blur-md animate-in fade-in">
+              <AlertCircle className="w-5 h-5 text-red-400 shrink-0" />
+              <span className="flex-1">{error}</span>
             </div>
           )}
 
-          {/* Sample quick test links */}
+          {/* Quick Demo Links */}
           <div className="flex flex-wrap items-center justify-center gap-2 pt-1 text-xs text-slate-400">
-            <span className="text-slate-500 text-[11px]">Link mẫu:</span>
+            <span className="text-slate-500 text-[11px]">Thử nhanh link mẫu:</span>
             <button
               onClick={() => {
-                setUrlInput('https://v.douyin.com/MLO5rN_kQsI/');
-                handleParse('https://v.douyin.com/MLO5rN_kQsI/');
+                setUrlInput('douyin_aesthetic');
+                handleParse('douyin_aesthetic');
               }}
-              className="px-2.5 py-1 rounded-full bg-slate-900 border border-slate-800 hover:border-pink-500/50 hover:text-pink-300 transition"
+              className="px-3 py-1 rounded-full bg-white/[0.04] border border-white/[0.08] hover:border-pink-500/40 hover:text-pink-300 text-slate-300 transition"
             >
               🇨🇳 Douyin Mẫu
             </button>
@@ -372,189 +384,364 @@ export default function App() {
                 setUrlInput('demo_tiktok');
                 handleParse('demo_tiktok');
               }}
-              className="px-2.5 py-1 rounded-full bg-slate-900 border border-slate-800 hover:border-cyan-500/50 hover:text-cyan-300 transition"
+              className="px-3 py-1 rounded-full bg-white/[0.04] border border-white/[0.08] hover:border-cyan-500/40 hover:text-cyan-300 text-slate-300 transition"
             >
               🎵 TikTok Mẫu
+            </button>
+            <button
+              onClick={() => {
+                setUrlInput('tiktok_slideshow');
+                handleParse('tiktok_slideshow');
+              }}
+              className="px-3 py-1 rounded-full bg-white/[0.04] border border-white/[0.08] hover:border-purple-500/40 hover:text-purple-300 text-slate-300 transition"
+            >
+              📸 Album Ảnh Mẫu
             </button>
           </div>
         </div>
 
-        {/* RESULT SECTION (Download button placed right at the top for instant 1-tap download) */}
+        {/* RESULT SECTION */}
         {parsedData && (
-          <div id="result-section" className="bg-slate-900/90 border border-slate-800 rounded-3xl p-4 sm:p-6 shadow-2xl flex flex-col gap-4">
-            {/* Header Status & Platform Tag */}
-            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-              <span className="text-xs text-emerald-400 font-semibold flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                Video đã sẵn sàng tải về
-              </span>
-              <span
-                className={`text-[11px] font-bold px-2.5 py-1 rounded-lg uppercase tracking-wider ${
-                  parsedData.platform === 'douyin'
-                    ? 'bg-pink-500/20 text-pink-400 border border-pink-500/30'
-                    : 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
-                }`}
-              >
-                {parsedData.platform === 'douyin' ? '🇨🇳 Douyin' : '🎵 TikTok'}
-              </span>
-            </div>
-
-            {/* TOP PRIMARY ACTION: Big Download Button RIGHT AT THE TOP */}
-            <div className="flex flex-col gap-2">
-              {(parsedData.hdVideoUrl || parsedData.videoUrl) && (
-                <button
-                  onClick={() =>
-                    downloadFile(
-                      parsedData.hdVideoUrl || parsedData.videoUrl,
-                      `[TikSaver]_${(parsedData.title || 'video').substring(0, 30)}.mp4`,
-                      'video_hd'
-                    )
-                  }
-                  disabled={downloadingType === 'video_hd'}
-                  className="w-full py-4 px-4 rounded-2xl font-bold text-base text-white bg-emerald-600 hover:bg-emerald-500 shadow-xl shadow-emerald-600/30 flex items-center justify-center gap-2.5 transition active:scale-[0.98]"
-                >
-                  <Download className="w-5 h-5" />
-                  <span>
-                    {downloadingType === 'video_hd' ? '⏳ Đang bắt đầu tải về...' : 'TẢI VIDEO KHÔNG LOGO (HD MP4)'}
-                  </span>
-                </button>
-              )}
-
-              {/* Slideshow: Download All Photos */}
-              {parsedData.images && parsedData.images.length > 0 && (
-                <button
-                  onClick={() => {
-                    parsedData.images?.forEach((imgUrl, i) => {
-                      setTimeout(() => {
-                        downloadFile(imgUrl, `[Photo_${i + 1}]_${parsedData.id}.jpg`, `photo_${i}`);
-                      }, i * 400);
-                    });
-                  }}
-                  className="w-full py-4 px-4 rounded-2xl font-bold text-base text-white bg-cyan-600 hover:bg-cyan-500 flex items-center justify-center gap-2.5 transition shadow-lg shadow-cyan-600/20 active:scale-[0.98]"
-                >
-                  <FolderDown className="w-5 h-5" />
-                  <span>TẢI TOÀN BỘ {parsedData.images.length} ẢNH</span>
-                </button>
-              )}
-
-              {/* Reset: Tải video khác */}
-              <button
-                onClick={resetSearch}
-                className="w-full py-2 text-xs font-semibold text-slate-400 hover:text-white transition text-center"
-              >
-                + Tải một video khác
-              </button>
-            </div>
-
-            {/* Caption text */}
-            {parsedData.title && (
-              <div className="bg-slate-950 p-3 rounded-xl border border-slate-800/80 flex flex-col gap-1">
-                <div className="flex items-center justify-between text-[11px] text-slate-400">
-                  <span className="font-semibold text-slate-400">Tiêu đề</span>
-                  <button
-                    onClick={copyCaption}
-                    className="flex items-center gap-1 text-cyan-400 hover:text-cyan-300 transition"
-                  >
-                    {copiedCaption ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-                    <span>{copiedCaption ? 'Đã sao chép' : 'Sao chép'}</span>
-                  </button>
-                </div>
-                <p className="text-xs text-slate-300 line-clamp-2 leading-relaxed">
-                  {parsedData.title}
-                </p>
-              </div>
-            )}
-
-            {/* Video Preview (Placed below the download button) */}
-            <div className="flex justify-center pt-1">
-              {parsedData.images && parsedData.images.length > 0 && !parsedData.videoUrl ? (
-                <div className="relative rounded-2xl overflow-hidden bg-black aspect-square w-full max-w-[200px] border border-slate-800 shadow">
-                  <img src={parsedData.cover || parsedData.images[0]} alt="" className="w-full h-full object-cover" />
-                  <span className="absolute bottom-2 right-2 px-2 py-0.5 rounded bg-black/70 text-xs text-white font-bold">
-                    {parsedData.images.length} ảnh
-                  </span>
-                </div>
-              ) : (
-                <div className="relative rounded-2xl overflow-hidden bg-black aspect-[9/16] w-full max-w-[180px] border border-slate-800 shadow group">
-                  <video
-                    ref={videoRef}
-                    src={parsedData.hdVideoUrl || parsedData.videoUrl}
-                    poster={parsedData.cover}
-                    loop
-                    playsInline
-                    onClick={togglePlay}
-                    className="w-full h-full object-contain cursor-pointer"
+          <section
+            id="result-section"
+            className="rounded-3xl bg-white/[0.03] border border-white/[0.1] backdrop-blur-xl p-5 sm:p-7 shadow-2xl flex flex-col gap-6"
+          >
+            {/* Header: Author Info + Platform badge */}
+            <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-white/[0.08]">
+              <div className="flex items-center gap-3 min-w-0">
+                {parsedData.author?.avatar ? (
+                  <img
+                    src={parsedData.author.avatar}
+                    alt={parsedData.author.nickname || 'Author'}
+                    className="w-11 h-11 rounded-full object-cover ring-2 ring-white/10 shrink-0 bg-slate-800"
                   />
-                  {!isPlaying && (
-                    <button
-                      onClick={togglePlay}
-                      className="absolute inset-0 m-auto w-10 h-10 rounded-full bg-slate-900/80 backdrop-blur-md border border-white/20 text-white flex items-center justify-center shadow hover:scale-110 transition group-hover:bg-cyan-500"
-                    >
-                      <Play className="w-4 h-4 fill-white ml-0.5" />
-                    </button>
+                ) : (
+                  <div className="w-11 h-11 rounded-full bg-gradient-to-tr from-cyan-500 to-pink-500 flex items-center justify-center font-bold text-white shrink-0">
+                    {(parsedData.author?.nickname || 'U').charAt(0).toUpperCase()}
+                  </div>
+                )}
+                <div className="min-w-0">
+                  <h4 className="font-bold text-sm sm:text-base text-white truncate">
+                    {parsedData.author?.nickname || 'Người dùng'}
+                  </h4>
+                  {parsedData.author?.unique_id && (
+                    <p className="text-xs text-slate-400 truncate">@{parsedData.author.unique_id}</p>
                   )}
                 </div>
-              )}
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span
+                  className={`text-[11px] font-bold px-3 py-1 rounded-full uppercase tracking-wider ${
+                    parsedData.platform === 'douyin'
+                      ? 'bg-pink-500/15 text-pink-300 border border-pink-500/30'
+                      : 'bg-cyan-500/15 text-cyan-300 border border-cyan-500/30'
+                  }`}
+                >
+                  {parsedData.platform === 'douyin' ? '🇨🇳 Douyin' : '🎵 TikTok'}
+                </span>
+              </div>
             </div>
-          </div>
+
+            {/* Main Content Grid: Preview on Left, Details & Downloads on Right */}
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
+              {/* Media Preview Column */}
+              <div className="md:col-span-5 flex flex-col items-center">
+                {parsedData.images && parsedData.images.length > 0 && !parsedData.videoUrl ? (
+                  /* Slideshow Gallery */
+                  <div className="w-full flex flex-col items-center gap-2.5">
+                    <div className="relative rounded-2xl overflow-hidden bg-black/60 aspect-square w-full max-w-[260px] border border-white/[0.08] shadow-lg">
+                      <img
+                        src={parsedData.images[activeImageIndex] || parsedData.cover}
+                        alt="Photo preview"
+                        className="w-full h-full object-cover"
+                      />
+                      <span className="absolute bottom-2.5 right-2.5 px-2.5 py-1 rounded-lg bg-black/75 backdrop-blur-sm text-xs font-bold text-white">
+                        {activeImageIndex + 1} / {parsedData.images.length}
+                      </span>
+                    </div>
+
+                    {/* Thumbnail dots/bar */}
+                    {parsedData.images.length > 1 && (
+                      <div className="flex items-center gap-1.5 overflow-x-auto max-w-full py-1">
+                        {parsedData.images.slice(0, 6).map((img, idx) => (
+                          <button
+                            key={idx}
+                            onClick={() => setActiveImageIndex(idx)}
+                            className={`w-9 h-9 rounded-lg overflow-hidden border transition shrink-0 ${
+                              activeImageIndex === idx ? 'border-cyan-400 ring-2 ring-cyan-400/40' : 'border-white/10 opacity-60 hover:opacity-100'
+                            }`}
+                          >
+                            <img src={img} alt="" className="w-full h-full object-cover" />
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  /* Video Player */
+                  <div className="relative rounded-2xl overflow-hidden bg-black aspect-[9/16] w-full max-w-[220px] border border-white/[0.08] shadow-2xl group">
+                    <video
+                      ref={videoRef}
+                      src={parsedData.hdVideoUrl || parsedData.videoUrl}
+                      poster={parsedData.cover}
+                      loop
+                      playsInline
+                      onClick={togglePlay}
+                      className="w-full h-full object-cover cursor-pointer"
+                    />
+
+                    {/* Duration badge */}
+                    {parsedData.duration ? (
+                      <span className="absolute top-2.5 left-2.5 px-2 py-0.5 rounded-md bg-black/70 backdrop-blur-sm text-[11px] font-mono text-white">
+                        {formatDuration(parsedData.duration)}
+                      </span>
+                    ) : null}
+
+                    {/* Play/Pause Button Overlay */}
+                    <button
+                      onClick={togglePlay}
+                      className="absolute inset-0 m-auto w-12 h-12 rounded-full bg-slate-900/80 backdrop-blur-md border border-white/20 text-white flex items-center justify-center shadow-lg transition transform hover:scale-110 active:scale-95 group-hover:bg-cyan-500"
+                      title={isPlaying ? 'Tạm dừng' : 'Xem video'}
+                    >
+                      {isPlaying ? (
+                        <Pause className="w-5 h-5 fill-white" />
+                      ) : (
+                        <Play className="w-5 h-5 fill-white ml-0.5" />
+                      )}
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Actions & Details Column */}
+              <div className="md:col-span-7 flex flex-col gap-4">
+                {/* Stats Bar */}
+                {parsedData.stats && (
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-slate-300">
+                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/[0.04] border border-white/[0.06]">
+                      <Eye className="w-3.5 h-3.5 text-cyan-400" />
+                      <span>{formatNumber(parsedData.stats.plays)}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/[0.04] border border-white/[0.06]">
+                      <Heart className="w-3.5 h-3.5 text-rose-400 fill-rose-400/20" />
+                      <span>{formatNumber(parsedData.stats.likes)}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/[0.04] border border-white/[0.06]">
+                      <MessageCircle className="w-3.5 h-3.5 text-blue-400" />
+                      <span>{formatNumber(parsedData.stats.comments)}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/[0.04] border border-white/[0.06]">
+                      <Share2 className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>{formatNumber(parsedData.stats.shares)}</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Caption / Title */}
+                {parsedData.title && (
+                  <div className="p-3.5 rounded-2xl bg-black/40 border border-white/[0.06] flex flex-col gap-2">
+                    <div className="flex items-center justify-between text-xs text-slate-400">
+                      <span className="font-semibold text-slate-300">Tiêu đề nội dung</span>
+                      <button
+                        onClick={copyCaption}
+                        className="flex items-center gap-1 text-cyan-400 hover:text-cyan-300 text-xs font-medium transition"
+                      >
+                        {copiedCaption ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                        <span>{copiedCaption ? 'Đã chép' : 'Sao chép caption'}</span>
+                      </button>
+                    </div>
+                    <p className="text-xs sm:text-sm text-slate-200 line-clamp-3 leading-relaxed">
+                      {parsedData.title}
+                    </p>
+                  </div>
+                )}
+
+                {/* DOWNLOAD ACTIONS GROUP */}
+                <div className="flex flex-col gap-2.5 pt-1">
+                  {/* 1. Main Video HD Download */}
+                  {(parsedData.hdVideoUrl || parsedData.videoUrl) && (
+                    <button
+                      onClick={() =>
+                        downloadFile(
+                          parsedData.hdVideoUrl || parsedData.videoUrl,
+                          `[TikSaver]_${(parsedData.title || 'video').substring(0, 30)}.mp4`,
+                          'video_hd'
+                        )
+                      }
+                      disabled={downloadingType === 'video_hd'}
+                      className="w-full py-4 px-5 rounded-2xl font-bold text-sm sm:text-base text-white bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-400 hover:to-teal-400 shadow-xl shadow-emerald-500/20 flex items-center justify-center gap-2.5 transition active:scale-[0.98] cursor-pointer"
+                    >
+                      {downloadingType === 'video_hd' ? (
+                        <>
+                          <RefreshCw className="w-5 h-5 animate-spin" />
+                          <span>Đang bắt đầu tải video...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Download className="w-5 h-5" />
+                          <span>TẢI VIDEO KHÔNG LOGO (HD MP4)</span>
+                        </>
+                      )}
+                    </button>
+                  )}
+
+                  {/* 2. Audio MP3 Download */}
+                  {parsedData.musicUrl && (
+                    <button
+                      onClick={() =>
+                        downloadFile(
+                          parsedData.musicUrl!,
+                          `[TikSaver_Audio]_${(parsedData.musicTitle || parsedData.title || 'audio').substring(0, 30)}.mp3`,
+                          'audio_mp3'
+                        )
+                      }
+                      disabled={downloadingType === 'audio_mp3'}
+                      className="w-full py-3 px-4 rounded-xl font-semibold text-xs sm:text-sm text-slate-200 bg-white/[0.05] hover:bg-white/[0.09] border border-white/[0.08] flex items-center justify-center gap-2 transition active:scale-[0.98] cursor-pointer"
+                    >
+                      <Music className="w-4 h-4 text-pink-400" />
+                      <span>
+                        {downloadingType === 'audio_mp3'
+                          ? 'Đang chuẩn bị MP3...'
+                          : `Tải Nhạc MP3 ${parsedData.musicTitle ? `(${parsedData.musicTitle.substring(0, 25)})` : ''}`}
+                      </span>
+                    </button>
+                  )}
+
+                  {/* 3. Photos / Slideshow Download */}
+                  {parsedData.images && parsedData.images.length > 0 && (
+                    <div className="flex flex-col gap-2">
+                      <button
+                        onClick={() => {
+                          parsedData.images?.forEach((imgUrl, i) => {
+                            setTimeout(() => {
+                              downloadFile(imgUrl, `[Photo_${i + 1}]_${parsedData.id}.jpg`, `photo_${i}`);
+                            }, i * 400);
+                          });
+                        }}
+                        className="w-full py-3.5 px-4 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 shadow-lg shadow-cyan-600/20 flex items-center justify-center gap-2 transition active:scale-[0.98] cursor-pointer"
+                      >
+                        <FolderDown className="w-4 h-4" />
+                        <span>TẢI TẤT CẢ {parsedData.images.length} ẢNH HD</span>
+                      </button>
+
+                      {/* Download currently viewed image */}
+                      <button
+                        onClick={() =>
+                          downloadFile(
+                            parsedData.images![activeImageIndex],
+                            `[Photo_${activeImageIndex + 1}]_${parsedData.id}.jpg`,
+                            'photo_single'
+                          )
+                        }
+                        className="w-full py-2 px-3 rounded-xl text-xs text-slate-300 bg-white/[0.03] hover:bg-white/[0.07] border border-white/[0.06] flex items-center justify-center gap-1.5 transition"
+                      >
+                        <Images className="w-3.5 h-3.5 text-cyan-400" />
+                        <span>Tải ảnh đang xem (#{activeImageIndex + 1})</span>
+                      </button>
+                    </div>
+                  )}
+
+                  {/* 4. Reset Button */}
+                  <button
+                    onClick={resetSearch}
+                    className="w-full py-2.5 text-xs font-medium text-slate-400 hover:text-white flex items-center justify-center gap-1.5 transition"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span>Tải video khác</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </section>
         )}
 
         {/* 3 Simple Steps */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
-          <div className="bg-slate-900/60 border border-slate-800/70 p-4 rounded-2xl flex items-start gap-3">
-            <span className="w-7 h-7 rounded-lg bg-cyan-500/20 text-cyan-400 font-extrabold text-xs flex items-center justify-center shrink-0">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 pt-2">
+          <div className="bg-white/[0.02] border border-white/[0.06] p-4 rounded-2xl flex items-start gap-3 backdrop-blur-sm">
+            <span className="w-7 h-7 rounded-xl bg-cyan-500/15 border border-cyan-500/20 text-cyan-400 font-black text-xs flex items-center justify-center shrink-0">
               1
             </span>
             <div>
-              <h5 className="font-bold text-white text-xs">Sao chép link</h5>
-              <p className="text-[11px] text-slate-400 mt-0.5">
-                Mở app TikTok hoặc Douyin, bấm Chia sẻ &rarr; Sao chép liên kết.
+              <h5 className="font-bold text-white text-xs">Sao chép liên kết</h5>
+              <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">
+                Mở app TikTok hoặc Douyin, nhấn Chia sẻ &rarr; Sao chép liên kết.
               </p>
             </div>
           </div>
 
-          <div className="bg-slate-900/60 border border-slate-800/70 p-4 rounded-2xl flex items-start gap-3">
-            <span className="w-7 h-7 rounded-lg bg-pink-500/20 text-pink-400 font-extrabold text-xs flex items-center justify-center shrink-0">
+          <div className="bg-white/[0.02] border border-white/[0.06] p-4 rounded-2xl flex items-start gap-3 backdrop-blur-sm">
+            <span className="w-7 h-7 rounded-xl bg-pink-500/15 border border-pink-500/20 text-pink-400 font-black text-xs flex items-center justify-center shrink-0">
               2
             </span>
             <div>
-              <h5 className="font-bold text-white text-xs">Dán vào ô tải</h5>
-              <p className="text-[11px] text-slate-400 mt-0.5">
-                Dán link vào ô tìm kiếm phía trên rồi bấm nút Tải Video.
+              <h5 className="font-bold text-white text-xs">Dán vào TikSaver</h5>
+              <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">
+                Dán link vào khung tìm kiếm phía trên rồi bấm nút Tải Ngay.
               </p>
             </div>
           </div>
 
-          <div className="bg-slate-900/60 border border-slate-800/70 p-4 rounded-2xl flex items-start gap-3">
-            <span className="w-7 h-7 rounded-lg bg-emerald-500/20 text-emerald-400 font-extrabold text-xs flex items-center justify-center shrink-0">
+          <div className="bg-white/[0.02] border border-white/[0.06] p-4 rounded-2xl flex items-start gap-3 backdrop-blur-sm">
+            <span className="w-7 h-7 rounded-xl bg-emerald-500/15 border border-emerald-500/20 text-emerald-400 font-black text-xs flex items-center justify-center shrink-0">
               3
             </span>
             <div>
-              <h5 className="font-bold text-white text-xs">Lưu về máy</h5>
-              <p className="text-[11px] text-slate-400 mt-0.5">
-                Nhấn Tải Video Không Logo để lưu tệp MP4 về thiết bị.
+              <h5 className="font-bold text-white text-xs">Lưu về thiết bị</h5>
+              <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">
+                Chọn định dạng MP4 HD không logo hoặc MP3 để lưu về máy.
               </p>
             </div>
+          </div>
+        </div>
+
+        {/* Feature Highlights */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="p-3.5 rounded-2xl bg-white/[0.02] border border-white/[0.05] flex flex-col items-center text-center gap-1.5">
+            <ShieldCheck className="w-5 h-5 text-emerald-400" />
+            <span className="text-xs font-semibold text-white">Sạch Watermark</span>
+            <span className="text-[10px] text-slate-400">Xóa logo và ID 100%</span>
+          </div>
+
+          <div className="p-3.5 rounded-2xl bg-white/[0.02] border border-white/[0.05] flex flex-col items-center text-center gap-1.5">
+            <Film className="w-5 h-5 text-cyan-400" />
+            <span className="text-xs font-semibold text-white">Chuẩn Full HD</span>
+            <span className="text-[10px] text-slate-400">Độ phân giải gốc nét cao</span>
+          </div>
+
+          <div className="p-3.5 rounded-2xl bg-white/[0.02] border border-white/[0.05] flex flex-col items-center text-center gap-1.5">
+            <Music className="w-5 h-5 text-pink-400" />
+            <span className="text-xs font-semibold text-white">Tách Nhạc MP3</span>
+            <span className="text-[10px] text-slate-400">Trích xuất âm thanh gốc</span>
+          </div>
+
+          <div className="p-3.5 rounded-2xl bg-white/[0.02] border border-white/[0.05] flex flex-col items-center text-center gap-1.5">
+            <Zap className="w-5 h-5 text-amber-400" />
+            <span className="text-xs font-semibold text-white">Siêu Tốc Độ</span>
+            <span className="text-[10px] text-slate-400">Tải về chỉ trong 1 chạm</span>
           </div>
         </div>
       </main>
 
       {/* MODAL: BATCH DOWNLOADER */}
       {showBatchModal && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 max-w-lg w-full flex flex-col gap-4 shadow-2xl">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-[#0e1422] border border-white/[0.1] rounded-3xl p-5 sm:p-6 max-w-lg w-full flex flex-col gap-4 shadow-2xl animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between pb-3 border-b border-white/[0.08]">
               <div className="flex items-center gap-2">
                 <Layers className="w-5 h-5 text-cyan-400" />
-                <h3 className="font-bold text-white text-base">Tải nhiều video cùng lúc</h3>
+                <h3 className="font-bold text-white text-base">Tải nhiều link cùng lúc</h3>
               </div>
-              <button onClick={() => setShowBatchModal(false)} className="p-1 text-slate-400 hover:text-white">
+              <button
+                onClick={() => setShowBatchModal(false)}
+                className="p-1 text-slate-400 hover:text-white rounded-lg transition"
+              >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <p className="text-xs text-slate-400">
-              Dán nhiều link (mỗi dòng một link, tối đa 10 video). Hệ thống sẽ tự động bóc tách logo cho tất cả.
+            <p className="text-xs text-slate-400 leading-relaxed">
+              Dán danh sách liên kết TikTok / Douyin (mỗi dòng một link, tối đa 10 video). Hệ thống sẽ tự động bóc tách không dính logo.
             </p>
 
             <textarea
@@ -562,24 +749,27 @@ export default function App() {
               onChange={(e) => setBatchInput(e.target.value)}
               rows={4}
               placeholder="https://v.douyin.com/...&#10;https://www.tiktok.com/@user/video/..."
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-cyan-500 font-mono"
+              className="w-full bg-black/40 border border-white/[0.08] rounded-xl p-3 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-cyan-500 font-mono"
             />
 
             <button
               onClick={handleBatchProcess}
               disabled={batchLoading || !batchInput.trim()}
-              className="w-full py-3 rounded-xl font-bold text-xs text-white bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 flex items-center justify-center gap-2 transition"
+              className="w-full py-3 rounded-xl font-bold text-xs text-white bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 disabled:opacity-50 flex items-center justify-center gap-2 transition cursor-pointer shadow-lg shadow-cyan-600/20"
             >
               {batchLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-              <span>{batchLoading ? 'Đang xử lý...' : 'Bắt đầu tải danh sách'}</span>
+              <span>{batchLoading ? 'Đang xử lý...' : 'Bắt đầu xử lý danh sách'}</span>
             </button>
 
             {/* Results */}
             {batchResults.length > 0 && (
-              <div className="flex flex-col gap-2 max-h-48 overflow-y-auto pr-1">
+              <div className="flex flex-col gap-2 max-h-56 overflow-y-auto pr-1">
                 {batchResults.map((b, idx) => (
-                  <div key={idx} className="p-2.5 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between gap-2">
-                    <p className="text-xs text-slate-200 truncate flex-1">
+                  <div
+                    key={idx}
+                    className="p-3 rounded-xl bg-black/40 border border-white/[0.06] flex items-center justify-between gap-3"
+                  >
+                    <p className="text-xs text-slate-200 truncate flex-1 font-medium">
                       {b.data?.title || b.raw}
                     </p>
                     {b.success && b.data ? (
@@ -591,12 +781,12 @@ export default function App() {
                             `b_${idx}`
                           )
                         }
-                        className="px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-[11px] font-bold text-white shrink-0"
+                        className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-xs font-bold text-white shrink-0 transition"
                       >
                         Tải MP4
                       </button>
                     ) : (
-                      <span className="text-[11px] text-red-400 shrink-0">Lỗi</span>
+                      <span className="text-xs text-red-400 shrink-0">Lỗi link</span>
                     )}
                   </div>
                 ))}
@@ -606,63 +796,9 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL: DOWNLOAD HISTORY */}
-      {showHistoryModal && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 max-w-lg w-full flex flex-col gap-4 shadow-2xl">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-              <div className="flex items-center gap-2">
-                <HistoryIcon className="w-5 h-5 text-pink-400" />
-                <h3 className="font-bold text-white text-base">Lịch sử video đã tải</h3>
-              </div>
-              <div className="flex items-center gap-2">
-                {history.length > 0 && (
-                  <button
-                    onClick={() => {
-                      if (confirm('Bạn có muốn xóa toàn bộ lịch sử không?')) setHistory([]);
-                    }}
-                    className="text-xs text-red-400 hover:underline"
-                  >
-                    Xóa tất cả
-                  </button>
-                )}
-                <button onClick={() => setShowHistoryModal(false)} className="p-1 text-slate-400 hover:text-white">
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
-
-            {history.length === 0 ? (
-              <p className="text-center py-8 text-xs text-slate-500">Chưa có lịch sử video nào.</p>
-            ) : (
-              <div className="flex flex-col gap-2 max-h-72 overflow-y-auto pr-1">
-                {history.map((item) => (
-                  <div key={item.id} className="p-2.5 rounded-xl bg-slate-950 border border-slate-800 flex items-center gap-3">
-                    <img src={item.cover} alt="" className="w-10 h-10 rounded-lg object-cover bg-slate-900 shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-semibold text-white truncate">{item.title || 'Video'}</p>
-                    </div>
-                    <button
-                      onClick={() => {
-                        setShowHistoryModal(false);
-                        setUrlInput(item.id);
-                        handleParse(item.id);
-                      }}
-                      className="px-2.5 py-1 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-[11px] font-bold text-white shrink-0"
-                    >
-                      Mở lại
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
       {/* Footer */}
-      <footer className="border-t border-slate-900 bg-slate-950 px-4 py-6 text-center text-xs text-slate-500">
-        <p>TikSaver &bull; Tải video TikTok & Douyin không logo nhanh chóng, miễn phí 100%.</p>
+      <footer className="border-t border-white/[0.06] bg-[#080c14] px-4 py-6 text-center text-xs text-slate-500 relative z-10">
+        <p>TikSaver &bull; Tải video TikTok & Douyin không watermark Full HD, miễn phí 100%.</p>
       </footer>
     </div>
   );
