@@ -10,11 +10,6 @@ import {
   Pause,
   X,
   FolderDown,
-  Music,
-  Heart,
-  MessageCircle,
-  Share2,
-  Eye,
   Sparkles,
   Zap,
   ShieldCheck,
@@ -26,13 +21,6 @@ import {
 import { ParsedMedia, BatchResultItem } from './types';
 
 // Helper formatters
-function formatNumber(num?: number): string {
-  if (!num) return '0';
-  if (num >= 1_000_000) return (num / 1_000_000).toFixed(1).replace('.0', '') + 'M';
-  if (num >= 1_000) return (num / 1_000).toFixed(1).replace('.0', '') + 'K';
-  return num.toLocaleString();
-}
-
 function formatDuration(seconds?: number): string {
   if (!seconds) return '';
   const mins = Math.floor(seconds / 60);
@@ -270,7 +258,7 @@ export default function App() {
           </h1>
 
           <p className="text-slate-400 text-xs sm:text-sm max-w-lg leading-relaxed">
-            Dán liên kết bất kỳ để tải video MP4 chuẩn Full HD không dính ID, tách nhạc MP3 và tải trọn bộ ảnh album cực nhanh.
+            Dán liên kết bất kỳ để tải video MP4 chuẩn Full HD không dính ID và tải trọn bộ ảnh album cực nhanh.
           </p>
         </div>
 
@@ -366,38 +354,6 @@ export default function App() {
               <span className="flex-1">{error}</span>
             </div>
           )}
-
-          {/* Quick Demo Links */}
-          <div className="flex flex-wrap items-center justify-center gap-2 pt-1 text-xs text-slate-400">
-            <span className="text-slate-500 text-[11px]">Thử nhanh link mẫu:</span>
-            <button
-              onClick={() => {
-                setUrlInput('douyin_aesthetic');
-                handleParse('douyin_aesthetic');
-              }}
-              className="px-3 py-1 rounded-full bg-white/[0.04] border border-white/[0.08] hover:border-pink-500/40 hover:text-pink-300 text-slate-300 transition"
-            >
-              🇨🇳 Douyin Mẫu
-            </button>
-            <button
-              onClick={() => {
-                setUrlInput('demo_tiktok');
-                handleParse('demo_tiktok');
-              }}
-              className="px-3 py-1 rounded-full bg-white/[0.04] border border-white/[0.08] hover:border-cyan-500/40 hover:text-cyan-300 text-slate-300 transition"
-            >
-              🎵 TikTok Mẫu
-            </button>
-            <button
-              onClick={() => {
-                setUrlInput('tiktok_slideshow');
-                handleParse('tiktok_slideshow');
-              }}
-              className="px-3 py-1 rounded-full bg-white/[0.04] border border-white/[0.08] hover:border-purple-500/40 hover:text-purple-300 text-slate-300 transition"
-            >
-              📸 Album Ảnh Mẫu
-            </button>
-          </div>
         </div>
 
         {/* RESULT SECTION */}
@@ -406,28 +362,11 @@ export default function App() {
             id="result-section"
             className="rounded-3xl bg-white/[0.03] border border-white/[0.1] backdrop-blur-xl p-5 sm:p-7 shadow-2xl flex flex-col gap-6"
           >
-            {/* Header: Author Info + Platform badge */}
-            <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-white/[0.08]">
-              <div className="flex items-center gap-3 min-w-0">
-                {parsedData.author?.avatar ? (
-                  <img
-                    src={parsedData.author.avatar}
-                    alt={parsedData.author.nickname || 'Author'}
-                    className="w-11 h-11 rounded-full object-cover ring-2 ring-white/10 shrink-0 bg-slate-800"
-                  />
-                ) : (
-                  <div className="w-11 h-11 rounded-full bg-gradient-to-tr from-cyan-500 to-pink-500 flex items-center justify-center font-bold text-white shrink-0">
-                    {(parsedData.author?.nickname || 'U').charAt(0).toUpperCase()}
-                  </div>
-                )}
-                <div className="min-w-0">
-                  <h4 className="font-bold text-sm sm:text-base text-white truncate">
-                    {parsedData.author?.nickname || 'Người dùng'}
-                  </h4>
-                  {parsedData.author?.unique_id && (
-                    <p className="text-xs text-slate-400 truncate">@{parsedData.author.unique_id}</p>
-                  )}
-                </div>
+            {/* Header: Status + Platform badge */}
+            <div className="flex items-center justify-between gap-3 pb-4 border-b border-white/[0.08]">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+                <span className="font-semibold text-sm text-slate-200">Video đã sẵn sàng</span>
               </div>
 
               <div className="flex items-center gap-2">
@@ -516,50 +455,9 @@ export default function App() {
 
               {/* Actions & Details Column */}
               <div className="md:col-span-7 flex flex-col gap-4">
-                {/* Stats Bar */}
-                {parsedData.stats && (
-                  <div className="flex flex-wrap items-center gap-2 text-xs text-slate-300">
-                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/[0.04] border border-white/[0.06]">
-                      <Eye className="w-3.5 h-3.5 text-cyan-400" />
-                      <span>{formatNumber(parsedData.stats.plays)}</span>
-                    </div>
-                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/[0.04] border border-white/[0.06]">
-                      <Heart className="w-3.5 h-3.5 text-rose-400 fill-rose-400/20" />
-                      <span>{formatNumber(parsedData.stats.likes)}</span>
-                    </div>
-                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/[0.04] border border-white/[0.06]">
-                      <MessageCircle className="w-3.5 h-3.5 text-blue-400" />
-                      <span>{formatNumber(parsedData.stats.comments)}</span>
-                    </div>
-                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/[0.04] border border-white/[0.06]">
-                      <Share2 className="w-3.5 h-3.5 text-emerald-400" />
-                      <span>{formatNumber(parsedData.stats.shares)}</span>
-                    </div>
-                  </div>
-                )}
-
-                {/* Caption / Title */}
-                {parsedData.title && (
-                  <div className="p-3.5 rounded-2xl bg-black/40 border border-white/[0.06] flex flex-col gap-2">
-                    <div className="flex items-center justify-between text-xs text-slate-400">
-                      <span className="font-semibold text-slate-300">Tiêu đề nội dung</span>
-                      <button
-                        onClick={copyCaption}
-                        className="flex items-center gap-1 text-cyan-400 hover:text-cyan-300 text-xs font-medium transition"
-                      >
-                        {copiedCaption ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                        <span>{copiedCaption ? 'Đã chép' : 'Sao chép caption'}</span>
-                      </button>
-                    </div>
-                    <p className="text-xs sm:text-sm text-slate-200 line-clamp-3 leading-relaxed">
-                      {parsedData.title}
-                    </p>
-                  </div>
-                )}
-
-                {/* DOWNLOAD ACTIONS GROUP */}
-                <div className="flex flex-col gap-2.5 pt-1">
-                  {/* 1. Main Video HD Download */}
+                {/* 1. DOWNLOAD ACTIONS GROUP (CHUYỂN NÚT TẢI LÊN ĐẦU) */}
+                <div className="flex flex-col gap-2.5">
+                  {/* Main Video HD Download */}
                   {(parsedData.hdVideoUrl || parsedData.videoUrl) && (
                     <button
                       onClick={() =>
@@ -586,29 +484,7 @@ export default function App() {
                     </button>
                   )}
 
-                  {/* 2. Audio MP3 Download */}
-                  {parsedData.musicUrl && (
-                    <button
-                      onClick={() =>
-                        downloadFile(
-                          parsedData.musicUrl!,
-                          `[TikSaver_Audio]_${(parsedData.musicTitle || parsedData.title || 'audio').substring(0, 30)}.mp3`,
-                          'audio_mp3'
-                        )
-                      }
-                      disabled={downloadingType === 'audio_mp3'}
-                      className="w-full py-3 px-4 rounded-xl font-semibold text-xs sm:text-sm text-slate-200 bg-white/[0.05] hover:bg-white/[0.09] border border-white/[0.08] flex items-center justify-center gap-2 transition active:scale-[0.98] cursor-pointer"
-                    >
-                      <Music className="w-4 h-4 text-pink-400" />
-                      <span>
-                        {downloadingType === 'audio_mp3'
-                          ? 'Đang chuẩn bị MP3...'
-                          : `Tải Nhạc MP3 ${parsedData.musicTitle ? `(${parsedData.musicTitle.substring(0, 25)})` : ''}`}
-                      </span>
-                    </button>
-                  )}
-
-                  {/* 3. Photos / Slideshow Download */}
+                  {/* Photos / Slideshow Download */}
                   {parsedData.images && parsedData.images.length > 0 && (
                     <div className="flex flex-col gap-2">
                       <button
@@ -641,16 +517,35 @@ export default function App() {
                       </button>
                     </div>
                   )}
-
-                  {/* 4. Reset Button */}
-                  <button
-                    onClick={resetSearch}
-                    className="w-full py-2.5 text-xs font-medium text-slate-400 hover:text-white flex items-center justify-center gap-1.5 transition"
-                  >
-                    <RotateCcw className="w-3.5 h-3.5" />
-                    <span>Tải video khác</span>
-                  </button>
                 </div>
+
+                {/* 2. Caption / Title */}
+                {parsedData.title && (
+                  <div className="p-3.5 rounded-2xl bg-black/40 border border-white/[0.06] flex flex-col gap-2">
+                    <div className="flex items-center justify-between text-xs text-slate-400">
+                      <span className="font-semibold text-slate-300">Tiêu đề nội dung</span>
+                      <button
+                        onClick={copyCaption}
+                        className="flex items-center gap-1 text-cyan-400 hover:text-cyan-300 text-xs font-medium transition"
+                      >
+                        {copiedCaption ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                        <span>{copiedCaption ? 'Đã chép' : 'Sao chép caption'}</span>
+                      </button>
+                    </div>
+                    <p className="text-xs sm:text-sm text-slate-200 line-clamp-3 leading-relaxed">
+                      {parsedData.title}
+                    </p>
+                  </div>
+                )}
+
+                {/* 3. Reset Button */}
+                <button
+                  onClick={resetSearch}
+                  className="w-full py-2.5 text-xs font-medium text-slate-400 hover:text-white flex items-center justify-center gap-1.5 transition"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Tải video khác</span>
+                </button>
               </div>
             </div>
           </section>
@@ -689,7 +584,7 @@ export default function App() {
             <div>
               <h5 className="font-bold text-white text-xs">Lưu về thiết bị</h5>
               <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">
-                Chọn định dạng MP4 HD không logo hoặc MP3 để lưu về máy.
+                Lưu video MP4 HD không logo hoặc ảnh album về máy.
               </p>
             </div>
           </div>
@@ -710,9 +605,9 @@ export default function App() {
           </div>
 
           <div className="p-3.5 rounded-2xl bg-white/[0.02] border border-white/[0.05] flex flex-col items-center text-center gap-1.5">
-            <Music className="w-5 h-5 text-pink-400" />
-            <span className="text-xs font-semibold text-white">Tách Nhạc MP3</span>
-            <span className="text-[10px] text-slate-400">Trích xuất âm thanh gốc</span>
+            <Sparkles className="w-5 h-5 text-pink-400" />
+            <span className="text-xs font-semibold text-white">Không Giới Hạn</span>
+            <span className="text-[10px] text-slate-400">Tải miễn phí 100%</span>
           </div>
 
           <div className="p-3.5 rounded-2xl bg-white/[0.02] border border-white/[0.05] flex flex-col items-center text-center gap-1.5">
