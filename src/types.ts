@@ -21,6 +21,8 @@ export interface ParsedMedia {
   videoUrl: string;
   hdVideoUrl?: string;
   wmVideoUrl?: string;
+  quality?: string;
+  fileSize?: number;
   musicUrl?: string;
   musicTitle?: string;
   musicAuthor?: string;

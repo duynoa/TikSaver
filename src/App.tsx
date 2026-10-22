@@ -366,7 +366,7 @@ export default function App() {
             ) : (
               <>
                 <Download className="w-5 h-5" />
-                <span>TẢI VIDEO KHÔNG LOGO (HD MP4)</span>
+                <span>TẢI VIDEO KHÔNG LOGO (1080P FULL HD)</span>
               </>
             )}
           </button>
@@ -402,14 +402,20 @@ export default function App() {
             id="result-section"
             className="rounded-3xl bg-white/[0.03] border border-white/[0.1] backdrop-blur-xl p-5 sm:p-7 shadow-2xl flex flex-col gap-6"
           >
-            {/* Header: Status + Platform badge */}
-            <div className="flex items-center justify-between gap-3 pb-4 border-b border-white/[0.08]">
+            {/* Header: Status + Quality + Platform badge */}
+            <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-white/[0.08]">
               <div className="flex items-center gap-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
-                <span className="font-semibold text-sm text-slate-200">Video đã sẵn sàng</span>
+                <span className="font-semibold text-sm text-slate-200">Video chất lượng gốc</span>
               </div>
 
               <div className="flex items-center gap-2">
+                {parsedData.quality && (
+                  <span className="text-[11px] font-bold px-3 py-1 rounded-full uppercase tracking-wider bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
+                    <Sparkles className="w-3 h-3 text-emerald-400" />
+                    <span>{parsedData.quality}</span>
+                  </span>
+                )}
                 <span
                   className={`text-[11px] font-bold px-3 py-1 rounded-full uppercase tracking-wider ${
                     parsedData.platform === 'douyin'
@@ -519,7 +525,10 @@ export default function App() {
                       ) : (
                         <>
                           <Download className="w-5 h-5" />
-                          <span>TẢI VIDEO KHÔNG LOGO (HD MP4)</span>
+                          <span>
+                            TẢI VIDEO KHÔNG LOGO ({parsedData.quality || '1080P FULL HD'}
+                            {parsedData.fileSize ? ` • ${(parsedData.fileSize / 1024 / 1024).toFixed(1)}MB` : ''})
+                          </span>
                         </>
                       )}
                     </button>

@@ -23,6 +23,8 @@ export interface ParsedMedia {
   videoUrl: string;
   hdVideoUrl?: string;
   wmVideoUrl?: string;
+  quality?: string;
+  fileSize?: number;
   musicUrl?: string;
   musicTitle?: string;
   musicAuthor?: string;
@@ -182,6 +184,8 @@ async function parseTikWM(url: string, isDouyin: boolean): Promise<ParsedMedia |
 
       const d = json.data;
       const images = Array.isArray(d.images) ? d.images.map(fixUrl) : undefined;
+      const chosenHd = fixUrl(d.hdplay || d.play);
+      const isFHD = Boolean(d.hdplay && d.hdplay !== d.play);
 
       return {
         id: String(d.id || Date.now()),
@@ -189,8 +193,10 @@ async function parseTikWM(url: string, isDouyin: boolean): Promise<ParsedMedia |
         title: d.title || (isDouyin ? 'Douyin Video' : 'TikTok Video'),
         cover: fixUrl(d.cover),
         videoUrl: fixUrl(d.play),
-        hdVideoUrl: fixUrl(d.hdplay || d.play),
+        hdVideoUrl: chosenHd,
         wmVideoUrl: fixUrl(d.wmplay),
+        quality: isFHD ? '1080p Full HD' : '720p HD',
+        fileSize: d.hd_size || d.size || undefined,
         musicUrl: fixUrl(d.music),
         musicTitle: d.music_info?.title || 'Original Sound',
         musicAuthor: d.music_info?.author || d.author?.nickname || 'Creator',
@@ -365,19 +371,17 @@ apiRouter.post('/parse', async (req: Request, res: Response): Promise<void> => {
 
     let parsed: ParsedMedia | null = null;
 
-    // Strategy 1 (Douyin): Try specialized Douyin engine (SnapTik/LoveTik CDN)
-    if (isDouyin) {
+    // Strategy 1 (Highest Quality 1080p FHD): Try TikWM with hd=1 first for both TikTok & Douyin
+    parsed = await parseTikWM(resolvedUrl, isDouyin);
+    if (!parsed && resolvedUrl !== extractedUrl) {
+      parsed = await parseTikWM(extractedUrl, isDouyin);
+    }
+
+    // Strategy 2 (Fallback for Douyin): Try specialized Douyin engine if TikWM did not resolve
+    if (!parsed && isDouyin) {
       parsed = await parseDouyinBtch(extractedUrl);
       if (!parsed && resolvedUrl !== extractedUrl) {
         parsed = await parseDouyinBtch(resolvedUrl);
-      }
-    }
-
-    // Strategy 2: TikWM (Try resolved canonical URL first, then original shortlink)
-    if (!parsed) {
-      parsed = await parseTikWM(resolvedUrl, isDouyin);
-      if (!parsed && resolvedUrl !== extractedUrl) {
-        parsed = await parseTikWM(extractedUrl, isDouyin);
       }
     }
 
@@ -420,16 +424,17 @@ apiRouter.post('/batch', async (req: Request, res: Response): Promise<void> => {
             : u;
 
         let data: ParsedMedia | null = null;
-        if (isDy) {
+        // Strategy 1 (Highest Quality 1080p FHD): Try TikWM with hd=1 first
+        data =
+          (await parseTikWM(resolved, isDy)) ||
+          (resolved !== u ? await parseTikWM(u, isDy) : null);
+
+        // Strategy 2 (Fallback for Douyin)
+        if (!data && isDy) {
           data = await parseDouyinBtch(u);
           if (!data && resolved !== u) {
             data = await parseDouyinBtch(resolved);
           }
-        }
-        if (!data) {
-          data =
-            (await parseTikWM(resolved, isDy)) ||
-            (resolved !== u ? await parseTikWM(u, isDy) : null);
         }
 
         if (data) return { raw, success: true, data };
