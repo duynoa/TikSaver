@@ -415,8 +415,77 @@ export default function App() {
               </div>
             </div>
 
-            {/* Main Content Grid: Preview on Left, Details & Downloads on Right */}
-            <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
+            {/* 1. TOP DOWNLOAD ACTIONS (NÚT TẢI ĐẶT LÊN TRÊN ĐẦU ĐỂ DÙNG ĐIỆN THOẠI KHÔNG CẦN CUỘN) */}
+            <div className="flex flex-col gap-2.5">
+              {/* Main Video HD Download */}
+              {(parsedData.hdVideoUrl || parsedData.videoUrl) && (
+                <button
+                  onClick={() =>
+                    downloadFile(
+                      parsedData.hdVideoUrl || parsedData.videoUrl,
+                      generateFilename(parsedData.title, 'mp4'),
+                      'video_hd',
+                      parsedData.platform
+                    )
+                  }
+                  disabled={downloadingType === 'video_hd'}
+                  className="w-full py-4 px-5 rounded-2xl font-black text-sm sm:text-base text-white bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-400 hover:to-teal-400 shadow-xl shadow-emerald-500/25 flex items-center justify-center gap-2.5 transition active:scale-[0.98] cursor-pointer tracking-wide"
+                >
+                  {downloadingType === 'video_hd' ? (
+                    <>
+                      <RefreshCw className="w-5 h-5 animate-spin" />
+                      <span>Đang bắt đầu tải video...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Download className="w-5 h-5" />
+                      <span>
+                        TẢI VIDEO KHÔNG LOGO ({parsedData.quality || '1080P FULL HD'}
+                        {parsedData.fileSize ? ` • ${(parsedData.fileSize / 1024 / 1024).toFixed(1)}MB` : ''})
+                      </span>
+                    </>
+                  )}
+                </button>
+              )}
+
+              {/* Photos / Slideshow Download */}
+              {parsedData.images && parsedData.images.length > 0 && (
+                <div className="flex flex-col gap-2">
+                  <button
+                    onClick={() => {
+                      const ts = getTimestamp();
+                      parsedData.images?.forEach((imgUrl, i) => {
+                        setTimeout(() => {
+                          downloadFile(imgUrl, `TikSaver_Photo_${i + 1}_${ts}.jpg`, `photo_${i}`);
+                        }, i * 400);
+                      });
+                    }}
+                    className="w-full py-3.5 px-4 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 shadow-lg shadow-cyan-600/20 flex items-center justify-center gap-2 transition active:scale-[0.98] cursor-pointer"
+                  >
+                    <FolderDown className="w-4 h-4" />
+                    <span>TẢI TẤT CẢ {parsedData.images.length} ẢNH HD</span>
+                  </button>
+
+                  {/* Download currently viewed image */}
+                  <button
+                    onClick={() =>
+                      downloadFile(
+                        parsedData.images![activeImageIndex],
+                        `TikSaver_Photo_${activeImageIndex + 1}_${getTimestamp()}.jpg`,
+                        'photo_single'
+                      )
+                    }
+                    className="w-full py-2 px-3 rounded-xl text-xs text-slate-300 bg-white/[0.03] hover:bg-white/[0.07] border border-white/[0.06] flex items-center justify-center gap-1.5 transition"
+                  >
+                    <Images className="w-3.5 h-3.5 text-cyan-400" />
+                    <span>Tải ảnh đang xem (#{activeImageIndex + 1})</span>
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Main Content Grid: Preview on Left, Caption & Reset on Right */}
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-start pt-1">
               {/* Media Preview Column */}
               <div className="md:col-span-5 flex flex-col items-center">
                 {parsedData.images && parsedData.images.length > 0 && !parsedData.videoUrl ? (
@@ -488,76 +557,7 @@ export default function App() {
 
               {/* Actions & Details Column */}
               <div className="md:col-span-7 flex flex-col gap-4">
-                {/* 1. DOWNLOAD ACTIONS GROUP (CHUYỂN NÚT TẢI LÊN ĐẦU) */}
-                <div className="flex flex-col gap-2.5">
-                  {/* Main Video HD Download */}
-                  {(parsedData.hdVideoUrl || parsedData.videoUrl) && (
-                    <button
-                      onClick={() =>
-                        downloadFile(
-                          parsedData.hdVideoUrl || parsedData.videoUrl,
-                          generateFilename(parsedData.title, 'mp4'),
-                          'video_hd',
-                          parsedData.platform
-                        )
-                      }
-                      disabled={downloadingType === 'video_hd'}
-                      className="w-full py-4 px-5 rounded-2xl font-bold text-sm sm:text-base text-white bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-400 hover:to-teal-400 shadow-xl shadow-emerald-500/20 flex items-center justify-center gap-2.5 transition active:scale-[0.98] cursor-pointer"
-                    >
-                      {downloadingType === 'video_hd' ? (
-                        <>
-                          <RefreshCw className="w-5 h-5 animate-spin" />
-                          <span>Đang bắt đầu tải video...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Download className="w-5 h-5" />
-                          <span>
-                            TẢI VIDEO KHÔNG LOGO ({parsedData.quality || '1080P FULL HD'}
-                            {parsedData.fileSize ? ` • ${(parsedData.fileSize / 1024 / 1024).toFixed(1)}MB` : ''})
-                          </span>
-                        </>
-                      )}
-                    </button>
-                  )}
-
-                  {/* Photos / Slideshow Download */}
-                  {parsedData.images && parsedData.images.length > 0 && (
-                    <div className="flex flex-col gap-2">
-                      <button
-                        onClick={() => {
-                          const ts = getTimestamp();
-                          parsedData.images?.forEach((imgUrl, i) => {
-                            setTimeout(() => {
-                              downloadFile(imgUrl, `TikSaver_Photo_${i + 1}_${ts}.jpg`, `photo_${i}`);
-                            }, i * 400);
-                          });
-                        }}
-                        className="w-full py-3.5 px-4 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 shadow-lg shadow-cyan-600/20 flex items-center justify-center gap-2 transition active:scale-[0.98] cursor-pointer"
-                      >
-                        <FolderDown className="w-4 h-4" />
-                        <span>TẢI TẤT CẢ {parsedData.images.length} ẢNH HD</span>
-                      </button>
-
-                      {/* Download currently viewed image */}
-                      <button
-                        onClick={() =>
-                          downloadFile(
-                            parsedData.images![activeImageIndex],
-                            `TikSaver_Photo_${activeImageIndex + 1}_${getTimestamp()}.jpg`,
-                            'photo_single'
-                          )
-                        }
-                        className="w-full py-2 px-3 rounded-xl text-xs text-slate-300 bg-white/[0.03] hover:bg-white/[0.07] border border-white/[0.06] flex items-center justify-center gap-1.5 transition"
-                      >
-                        <Images className="w-3.5 h-3.5 text-cyan-400" />
-                        <span>Tải ảnh đang xem (#{activeImageIndex + 1})</span>
-                      </button>
-                    </div>
-                  )}
-                </div>
-
-                {/* 2. Caption / Title */}
+                {/* Caption / Title */}
                 {parsedData.title && (
                   <div className="p-3.5 rounded-2xl bg-black/40 border border-white/[0.06] flex flex-col gap-2">
                     <div className="flex items-center justify-between text-xs text-slate-400">
@@ -576,7 +576,7 @@ export default function App() {
                   </div>
                 )}
 
-                {/* 3. Reset Button */}
+                {/* Reset Button */}
                 <button
                   onClick={resetSearch}
                   className="w-full py-2.5 text-xs font-medium text-slate-400 hover:text-white flex items-center justify-center gap-1.5 transition"
