@@ -28,6 +28,32 @@ function formatDuration(seconds?: number): string {
   return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
 }
 
+function getTimestamp(): string {
+  const now = new Date();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const yyyy = now.getFullYear();
+  const mm = pad(now.getMonth() + 1);
+  const dd = pad(now.getDate());
+  const hh = pad(now.getHours());
+  const min = pad(now.getMinutes());
+  const ss = pad(now.getSeconds());
+  return `${yyyy}${mm}${dd}_${hh}${min}${ss}`;
+}
+
+function generateFilename(title?: string, ext = 'mp4'): string {
+  const ts = getTimestamp();
+  const raw = (title || 'video')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^\w\s-]/gi, '')
+    .trim()
+    .replace(/\s+/g, '_')
+    .substring(0, 35);
+
+  const cleanTitle = raw.replace(/^_+|_+$/g, '');
+  return cleanTitle ? `TikSaver_${cleanTitle}_${ts}.${ext}` : `TikSaver_${ts}.${ext}`;
+}
+
 export default function App() {
   const [urlInput, setUrlInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -100,7 +126,7 @@ export default function App() {
           if (videoUrl) {
             downloadFile(
               videoUrl,
-              `[TikSaver]_${(data.data.title || 'video').substring(0, 30)}.mp4`,
+              generateFilename(data.data.title, 'mp4'),
               'video_hd',
               data.data.platform
             );
@@ -477,8 +503,9 @@ export default function App() {
                       onClick={() =>
                         downloadFile(
                           parsedData.hdVideoUrl || parsedData.videoUrl,
-                          `[TikSaver]_${(parsedData.title || 'video').substring(0, 30)}.mp4`,
-                          'video_hd'
+                          generateFilename(parsedData.title, 'mp4'),
+                          'video_hd',
+                          parsedData.platform
                         )
                       }
                       disabled={downloadingType === 'video_hd'}
@@ -503,9 +530,10 @@ export default function App() {
                     <div className="flex flex-col gap-2">
                       <button
                         onClick={() => {
+                          const ts = getTimestamp();
                           parsedData.images?.forEach((imgUrl, i) => {
                             setTimeout(() => {
-                              downloadFile(imgUrl, `[Photo_${i + 1}]_${parsedData.id}.jpg`, `photo_${i}`);
+                              downloadFile(imgUrl, `TikSaver_Photo_${i + 1}_${ts}.jpg`, `photo_${i}`);
                             }, i * 400);
                           });
                         }}
@@ -520,7 +548,7 @@ export default function App() {
                         onClick={() =>
                           downloadFile(
                             parsedData.images![activeImageIndex],
-                            `[Photo_${activeImageIndex + 1}]_${parsedData.id}.jpg`,
+                            `TikSaver_Photo_${activeImageIndex + 1}_${getTimestamp()}.jpg`,
                             'photo_single'
                           )
                         }
@@ -686,8 +714,9 @@ export default function App() {
                         onClick={() =>
                           downloadFile(
                             b.data?.hdVideoUrl || b.data?.videoUrl || '',
-                            `[Batch_${idx + 1}].mp4`,
-                            `b_${idx}`
+                            generateFilename(b.data?.title || `Batch_${idx + 1}`, 'mp4'),
+                            `b_${idx}`,
+                            b.data?.platform
                           )
                         }
                         className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-xs font-bold text-white shrink-0 transition"
