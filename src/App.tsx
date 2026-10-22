@@ -96,8 +96,8 @@ export default function App() {
     return null;
   }, [urlInput]);
 
-  // Main Parse & Auto-Download function
-  const handleParseAndDownload = async (urlOverride?: string, autoDownload = true) => {
+  // Main Parse function (NO auto-download, user must click download button)
+  const handleParse = async (urlOverride?: string) => {
     const target = (urlOverride !== undefined ? urlOverride : urlInput).trim();
     if (!target) {
       setError('Vui lòng dán liên kết video TikTok hoặc Douyin vào ô bên dưới!');
@@ -120,19 +120,6 @@ export default function App() {
       if (res.ok && data.success && data.data) {
         setParsedData(data.data);
 
-        // Auto trigger file download if video is available
-        if (autoDownload) {
-          const videoUrl = data.data.hdVideoUrl || data.data.videoUrl;
-          if (videoUrl) {
-            downloadFile(
-              videoUrl,
-              generateFilename(data.data.title, 'mp4'),
-              'video_hd',
-              data.data.platform
-            );
-          }
-        }
-
         setTimeout(() => {
           document.getElementById('result-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }, 150);
@@ -152,7 +139,7 @@ export default function App() {
       const text = await navigator.clipboard.readText();
       if (text) {
         setUrlInput(text);
-        handleParseAndDownload(text);
+        handleParse(text);
       }
     } catch {
       setError('Không thể truy cập Clipboard. Hãy dùng phím Ctrl+V hoặc nhấn giữ để dán liên kết.');
@@ -319,7 +306,7 @@ export default function App() {
                   if (error) setError(null);
                 }}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleParseAndDownload();
+                  if (e.key === 'Enter') handleParse();
                 }}
                 placeholder="Dán liên kết video TikTok hoặc Douyin vào đây..."
                 className="w-full bg-transparent px-2.5 py-2.5 text-sm sm:text-base text-white placeholder-slate-500 focus:outline-none"
@@ -352,21 +339,21 @@ export default function App() {
             </div>
           </div>
 
-          {/* Primary Action Button: TẢI VIDEO KHÔNG LOGO LÊN ĐẦU */}
+          {/* Primary Action Button: LẤY LINK TẢI VIDEO */}
           <button
-            onClick={() => handleParseAndDownload()}
+            onClick={() => handleParse()}
             disabled={loading || !urlInput.trim()}
-            className="w-full py-4 px-6 rounded-2xl font-black text-sm sm:text-base text-white bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-400 hover:to-teal-400 disabled:opacity-50 disabled:cursor-not-allowed shadow-xl shadow-emerald-500/25 flex items-center justify-center gap-2.5 transition active:scale-[0.98] cursor-pointer tracking-wide"
+            className="w-full py-4 px-6 rounded-2xl font-black text-sm sm:text-base text-white bg-gradient-to-r from-cyan-500 via-teal-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 disabled:opacity-50 disabled:cursor-not-allowed shadow-xl shadow-cyan-500/25 flex items-center justify-center gap-2.5 transition active:scale-[0.98] cursor-pointer tracking-wide"
           >
             {loading ? (
               <>
                 <RefreshCw className="w-5 h-5 animate-spin" />
-                <span>Đang xử lý & bắt đầu tải video...</span>
+                <span>Đang kiểm tra & lấy link video...</span>
               </>
             ) : (
               <>
                 <Download className="w-5 h-5" />
-                <span>TẢI VIDEO KHÔNG LOGO (1080P FULL HD)</span>
+                <span>LẤY LINK TẢI (1080P FULL HD)</span>
               </>
             )}
           </button>
